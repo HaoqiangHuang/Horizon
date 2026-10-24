@@ -37,10 +37,10 @@ ENV/
 .env
 
 # Data files (keep structure, ignore content)
+# NOTE: data/summaries/*.md and data/subscribers.json are tracked in this fork
+# so CI runs keep history_search data and the recipient list across runs.
 data/config.json
 data/seen.json
-data/summaries/*.md
-data/subscribers.json
 data/mcp.secrets.json
 data/mcp-secrets.json
 data/mcp-runs/

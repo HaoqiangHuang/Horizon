@@ -1,0 +1,67 @@
+name: Daily Horizon Summary
+
+on:
+  schedule:
+    # GitHub scheduled workflows use UTC and can lag at peak times.
+    # 23:00 UTC = 07:00 (next morning) Asia/Shanghai.
+    - cron: '0 23 * * *'
+  workflow_dispatch:      # Allow manual trigger
+
+jobs:
+  daily-summary:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      contents: write  # Needed to commit digests back for history_search
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.11.26"
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Prepare GitHub Actions config
+        run: cp data/config.github.json data/config.json
+
+      - name: Run Horizon
+        env:
+          MINIMAX_API_KEY: ${{ secrets.MINIMAX_API_KEY }}
+          EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+        run: uv run horizon --hours 24
+
+      - name: Persist digests for history_search
+        if: always()
+        run: |
+          git config user.name "horizon-bot"
+          git config user.email "actions@github.com"
+          if [ -d data/summaries ]; then
+            git add data/summaries/
+            git diff --cached --quiet || git commit -m "chore(digests): persist $(date +'%F') [skip ci]"
+            git push
+          fi
+
+      - name: Set current date as environment variable
+        if: always()
+        run: echo "DATE=$(date +'%F')" >> $GITHUB_ENV
+
+      - name: Deploy to GitHub Pages
+        if: always()
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          keep_files: true  # Keep existing summaries on gh-pages branch
+          commit_message: "📝 Daily Summary: ${{ env.DATE }}"
+          publish_branch: gh-pages
+          enable_jekyll: true
